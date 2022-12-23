@@ -49,14 +49,19 @@ Taken from: https://docs.portainer.io/start/install/server
 Standalone:  
 ```shell
 docker volume create portainer_data
-docker run -d -p 8000:8000 -p 9443:9443 --name portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest
+docker run -d -p 9443:9443 --name portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest
 echo "https://$(curl ip.nezu.cc 2> /dev/null):9443/"
 ```
 
 Swarm:  
-`portainer-agent-stack.yml`
+```shell
+export NODE_ID=$(docker info -f '{{.Swarm.NodeID}}')
+docker node update --label-add portainer.portainer-data=true $NODE_ID
+```
+
+`portainer.yml`
 ```yaml
-version: '3.2'
+version: '3.8'
 services:
   agent:
     image: portainer/agent:latest
@@ -75,25 +80,38 @@ services:
     ports:
       - "9443:9443"
       - "9000:9000"
-      - "8000:8000"
     volumes:
       - portainer_data:/data
     networks:
       - agent_network
+      #- proxy
     deploy:
       mode: replicated
       replicas: 1
       placement:
-        constraints: [node.role == manager]
+        constraints:
+          - node.role == manager
+          - node.labels.portainer.portainer-data == true
+      #labels:
+      #  - "traefik.enable=true"
+      #  - "traefik.docker.network=proxy"
+      #  - "traefik.http.routers.portainer.entrypoints=https"
+      #  - "traefik.http.routers.portainer.rule=Host(`portainer.<DOMAIN>`)"
+      #  - "traefik.http.routers.portainer.tls=true"
+      #  - "traefik.http.routers.portainer.tls.certresolver=http"
+      #  - "traefik.http.routers.portainer.service=portainer"
+      #  - "traefik.http.services.portainer.loadbalancer.server.port=9000"
 volumes:
   portainer_data:
 networks:
   agent_network:
     driver: overlay
     attachable: true
+  #proxy:
+  #  external: true
 ```
 ```shell
-docker stack deploy -c portainer-agent-stack.yml portainer
+docker stack deploy -c portainer.yml portainer
 echo "https://$(curl ip.nezu.cc 2> /dev/null):9443/"
 ```
 
