@@ -50,6 +50,7 @@ Standalone:
 ```shell
 docker volume create portainer_data
 docker run -d -p 8000:8000 -p 9443:9443 --name portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest
+echo "https://$(curl ip.nezu.cc 2> /dev/null):9443/"
 ```
 
 Swarm:  
@@ -184,17 +185,77 @@ networks:
     external: true
 ```
 
+Swarm:  
+```shell
+docker network create --driver=overlay proxy
+export NODE_ID=$(docker info -f '{{.Swarm.NodeID}}')
+docker node update --label-add traefik.traefik-certificates=true $NODE_ID
+openssl passwd -apr1
+```
+
+`traefik.yml`
+```yaml
+version: '3.8'
+services:
+  traefik:
+    image: traefik:v2.9
+    networks:
+      - proxy
+    ports:
+      - 80:80
+      - 443:443
+    deploy:
+      placement:
+        constraints:
+          - node.labels.traefik.traefik-certificates == true
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=traefik
+        - traefik.http.routers.traefik.rule=Host(`traefik.iamagayperson.ml`)
+        - traefik.http.routers.traefik.entrypoints=https
+        - traefik.http.routers.traefik.tls=true
+        - traefik.http.routers.traefik.service=api@internal
+        - traefik.http.routers.traefik.tls.certresolver=http
+        #- traefik.http.routers.traefik.middlewares=admin-auth
+        #- traefik.http.middlewares.admin-auth.basicauth.users=nezu:$(openssl passwd -apr1)
+        - traefik.http.services.dummy-traefik.loadbalancer.server.port=8080 # dummy service
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik-certificates:/certificates
+    command:
+      - --providers.docker
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.swarmmode
+      - --entrypoints.http.address=:80
+      - --entrypoints.http.http.redirections.entryPoint.to=https
+      - --entrypoints.http.http.redirections.entryPoint.scheme=https
+      - --entrypoints.https.address=:443
+      - --certificatesresolvers.http.acme.email=<EMAIL>
+      - --certificatesresolvers.http.acme.storage=/certificates/acme.json
+      #- --certificatesresolvers.http.acme.caServer=https://acme-staging-v02.api.letsencrypt.org/directory
+      - --certificatesresolvers.http.acme.tlschallenge=true
+      #- --accesslog
+      - --log
+      - --api
+volumes:
+  traefik-certificates:
+networks:
+  proxy:
+    external: true
+```
+
 Example service:   
 ```yaml
 version: '3.8'
 services:
-  bdo-webtwo:
+  test:
     image: nginx:latest
-    restart: always
-    security_opt:
-      - no-new-privileges:true
+    #restart: always
+    #security_opt:
+    #  - no-new-privileges:true
     networks:
       - proxy
+    #deploy:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy"
