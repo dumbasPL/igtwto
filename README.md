@@ -5,7 +5,7 @@ A repo that has short snippets/commands that i google all the time since it's fa
 
 ### base
 ```shell
-sudo apt-get update && sudo apt-get install -y htop vim nload ca-certificates curl gnupg lsb-release wget
+sudo apt-get update && sudo apt-get upgrade -y && sudo apt-get install -y htop vim nload ca-certificates curl gnupg lsb-release wget
 sudo useradd -m -G sudo -s /bin/bash nezu
 echo "nezu ALL=(ALL:ALL) NOPASSWD: ALL" > /etc/sudoers.d/nezu
 sudo -i -u nezu
